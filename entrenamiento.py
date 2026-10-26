@@ -28,10 +28,10 @@ dataset_tokenizado = dataset.map(preparar_datos, batched=True)
 args = Seq2SeqTrainingArguments(
     output_dir="./modelo_otomi_checkpoints",
     learning_rate=2e-5,
-    per_device_train_batch_size=4,  # Reducir a 2 si tu computadora se queda sin memoria
+    per_device_train_batch_size=4,
     weight_decay=0.01,
-    save_total_limit=2,
-    num_train_epochs=3,             # Número de veces que la IA leerá todo el dataset
+    save_strategy="no",             # <-- EVITA QUE SE LLENE EL DISCO DURO
+    num_train_epochs=40,            # <-- Mantenemos las 40 épocas
     predict_with_generate=True,
     logging_steps=10
 )

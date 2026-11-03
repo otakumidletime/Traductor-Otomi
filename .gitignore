@@ -2,4 +2,5 @@ otomitraductor.db
 modelo_otomi_final/
 *.wav
 *.csv
+!data/*.csv
 __pycache__/

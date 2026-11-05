@@ -1,8 +1,13 @@
+import os
+os.add_dll_directory(r"E:\basedatos")
 import whisper
 import sounddevice as sd
 import numpy as np
 import queue
 import warnings
+import sounddevice as sd
+import soundfile as sf
+from TTS.api import TTS
 
 warnings.filterwarnings("ignore", message="FP16 is not supported on CPU")
 
@@ -60,3 +65,35 @@ def detener_y_transcribir():
     )
     
     return resultado["text"].strip()
+
+print("Cargando modelo de voz Ñañho en memoria...")
+modelo_tts = TTS(
+    model_path="./modelo_voz_otomi",
+    config_path="./modelo_voz_otomi/config.json"
+).to("cpu")
+
+# NUEVA VARIABLE: Actúa como la memoria del último texto procesado
+ultimo_texto_generado = ""
+
+def generar_y_reproducir_audio(texto_otomi):
+    global ultimo_texto_generado
+    ruta_salida = "audio_generado_temporal.wav"
+    
+    # Condición: Si el texto es nuevo, o el archivo de audio no existe, generamos uno nuevo.
+    if texto_otomi != ultimo_texto_generado or not os.path.exists(ruta_salida):
+        print(f"Texto nuevo detectado. Generando voz de XTTS...")
+        modelo_tts.tts_to_file(
+            text=texto_otomi,
+            speaker_wav="./modelo_voz_otomi/reference.wav",
+            language="es",
+            file_path=ruta_salida
+        )
+        # Actualizamos la memoria para la próxima vez que el usuario haga clic
+        ultimo_texto_generado = texto_otomi
+    else:
+        print("Texto idéntico al anterior. Reproduciendo desde caché...")
+    
+    # Reproducimos el audio final (ya sea el recién creado o el almacenado)
+    data, fs = sf.read(ruta_salida)
+    sd.play(data, fs)
+    sd.wait()

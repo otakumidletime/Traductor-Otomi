@@ -1,0 +1,8 @@
+# Install a CUDA-enabled PyTorch build separately using the official selector:
+# https://pytorch.org/get-started/locally/
+transformers>=4.50,<6
+datasets>=3,<5
+accelerate>=1.0
+peft>=0.15
+scikit-learn>=1.6
+sacrebleu>=2.4

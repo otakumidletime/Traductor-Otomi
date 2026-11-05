@@ -4,3 +4,5 @@ modelo_otomi_final/
 *.csv
 !data/*.csv
 __pycache__/
+.venv/
+/runs/

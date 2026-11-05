@@ -1,7 +1,7 @@
 """Reusable Spanish -> Otomi inference for a future Flet front end.
 
-Approved exact matches are returned immediately. Unseen text uses the trained
-ByT5 LoRA adapter, when available. No synthetic confidence score is invented.
+Approved exact matches are returned immediately. Unseen text is declined by
+default; --experimental-model explicitly enables neural generation.
 """
 from __future__ import annotations
 
@@ -14,13 +14,21 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data" / "dataset_conjunto_definitivo_es_otomi.csv"
-DEFAULT_MODEL = ROOT / "runs" / "byt5_lora" / "modelo_final"
+DEFAULT_MODEL = ROOT / "runs" / "byt5_full" / "modelo_final"
 VARIANTS = {"santiago_mexquititlan", "san_ilde_tultepec"}
 UNITS = {"lexico", "oracion"}
 
 
 def normalize(text: str) -> str:
     return re.sub(r"\s+", " ", unicodedata.normalize("NFC", text).casefold()).strip()
+
+
+def model_input(text: str, variant: str, unit: str, input_format: str) -> str:
+    if input_format == "natural":
+        community = "Santiago Mexquititlán" if variant == "santiago_mexquititlan" else "San Ildefonso Tultepec"
+        label = "palabra" if unit == "lexico" else "oración"
+        return f"español a otomí de {community}, {label}: {text}"
+    return f"<{variant}><{unit}> {text}"
 
 
 class OtomiTranslator:
@@ -52,11 +60,15 @@ class OtomiTranslator:
             raise RuntimeError("Instala requirements-training.txt para inferencia neuronal") from error
         self.config = json.loads(config_file.read_text(encoding="utf-8"))
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        base = AutoModelForSeq2SeqLM.from_pretrained(self.config["base_model"])
-        self.model = PeftModel.from_pretrained(base, self.model_dir).to(self.device).eval()
+        if self.config.get("tuning_mode") == "full":
+            self.model = AutoModelForSeq2SeqLM.from_pretrained(self.model_dir).to(self.device).eval()
+        else:
+            base = AutoModelForSeq2SeqLM.from_pretrained(self.config["base_model"])
+            self.model = PeftModel.from_pretrained(base, self.model_dir).to(self.device).eval()
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_dir)
 
-    def translate(self, text: str, variant: str, unit: str = "lexico") -> dict:
+    def translate(self, text: str, variant: str, unit: str = "lexico",
+                  allow_experimental: bool = False) -> dict:
         if variant not in VARIANTS or unit not in UNITS:
             raise ValueError("Variante o tipo de unidad desconocidos")
         text = unicodedata.normalize("NFC", text.strip())
@@ -70,10 +82,14 @@ class OtomiTranslator:
             return {"otomi": "", "metodo": "sin_cobertura",
                     "aviso": "El corpus no contiene oraciones paralelas de Santiago Mexquititlán.",
                     "variante_id": variant, "tipo_unidad": unit}
+        if not allow_experimental:
+            return {"otomi": "", "metodo": "sin_cobertura",
+                    "aviso": "No hay una traducción confirmada para este texto. Usa --experimental-model para generar una hipótesis sin validar.",
+                    "variante_id": variant, "tipo_unidad": unit}
         self._load_model()
         import torch
-        tagged = f"<{variant}><{unit}> {text}"
-        inputs = self.tokenizer(tagged, return_tensors="pt", truncation=True,
+        formatted = model_input(text, variant, unit, self.config.get("input_format", "tagged"))
+        inputs = self.tokenizer(formatted, return_tensors="pt", truncation=True,
                                 max_length=self.config["max_source"]).to(self.device)
         with torch.inference_mode():
             output = self.model.generate(**inputs, max_new_tokens=self.config["max_target"],
@@ -88,9 +104,12 @@ def main():
     parser.add_argument("--variante", choices=sorted(VARIANTS), required=True)
     parser.add_argument("--tipo", choices=sorted(UNITS), default="lexico")
     parser.add_argument("--model-dir", type=Path, default=DEFAULT_MODEL)
+    parser.add_argument("--experimental-model", action="store_true",
+                        help="Genera una hipótesis neuronal para texto ausente del diccionario")
     args = parser.parse_args()
     try:
-        result = OtomiTranslator(args.model_dir).translate(args.texto, args.variante, args.tipo)
+        result = OtomiTranslator(args.model_dir).translate(args.texto, args.variante, args.tipo,
+                                                          args.experimental_model)
     except (FileNotFoundError, RuntimeError) as error:
         parser.exit(2, f"{error}\n")
     print(json.dumps(result, ensure_ascii=False, indent=2))

@@ -1,4 +1,4 @@
-"""Train and evaluate a Spanish -> Otomi ByT5 LoRA adapter.
+"""Train and evaluate Spanish -> Otomi sequence-to-sequence models.
 
 The default command validates the corpus. --baseline evaluates a train-only
 character retrieval baseline on validation. --train fine-tunes on train,
@@ -30,6 +30,15 @@ EXPECTED = {"train": 341, "validation": 36, "test": 38}
 VARIANTS = {"santiago_mexquititlan", "san_ilde_tultepec"}
 UNITS = {"lexico", "oracion"}
 MODEL_NAME = "google/byt5-small"
+
+
+def model_input(row: dict, input_format: str) -> str:
+    if input_format == "tagged":
+        return row["input_text"]
+    variant = ("Santiago Mexquititlán" if row["variante_id"] == "santiago_mexquititlan"
+               else "San Ildefonso Tultepec")
+    unit = "palabra" if row["tipo_unidad"] == "lexico" else "oración"
+    return f"español a otomí de {variant}, {unit}: {row['espanol']}"
 
 
 def normalize(text: str) -> str:
@@ -177,19 +186,34 @@ def train(args, data: dict) -> None:
     random.seed(args.seed)
     set_seed(args.seed)
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
-    model = AutoModelForSeq2SeqLM.from_pretrained(args.model_name)
+    low_memory_dtype = (torch.bfloat16 if args.full_finetune and torch.cuda.is_available()
+                        and torch.cuda.is_bf16_supported() else None)
+    model = (AutoModelForSeq2SeqLM.from_pretrained(args.model_name, dtype=low_memory_dtype)
+             if low_memory_dtype is not None else AutoModelForSeq2SeqLM.from_pretrained(args.model_name))
     model.config.use_cache = False
-    lora = LoraConfig(task_type=TaskType.SEQ_2_SEQ_LM, inference_mode=False,
-                      r=8, lora_alpha=32, lora_dropout=0.1, target_modules=["q", "v"])
-    model = get_peft_model(model, lora)
-    if hasattr(model, "enable_input_require_grads"):
-        model.enable_input_require_grads()
-    model.print_trainable_parameters()
+    if not args.full_finetune:
+        lora = LoraConfig(task_type=TaskType.SEQ_2_SEQ_LM, inference_mode=False,
+                          r=8, lora_alpha=32, lora_dropout=0.1, target_modules=["q", "v"])
+        model = get_peft_model(model, lora)
+        if hasattr(model, "enable_input_require_grads"):
+            model.enable_input_require_grads()
+        model.print_trainable_parameters()
+    else:
+        print("Ajuste completo:", sum(p.numel() for p in model.parameters() if p.requires_grad), "parámetros")
 
     dataset = load_dataset("json", data_files={key: str(path) for key, path in FILES.items()})
 
+    for split_rows in data.values():
+        for row in split_rows:
+            source_tokens = len(tokenizer(model_input(row, args.input_format)).input_ids)
+            target_tokens = len(tokenizer(text_target=row["target_text"]).input_ids)
+            if source_tokens > args.max_source or target_tokens > args.max_target:
+                raise ValueError(f"Límite de tokens insuficiente para {row['id']}: {source_tokens}/{target_tokens}")
+
     def encode(batch):
-        encoded = tokenizer(batch["input_text"], max_length=args.max_source, truncation=True)
+        formatted = [model_input({key: values[index] for key, values in batch.items()}, args.input_format)
+                     for index in range(len(batch["espanol"]))]
+        encoded = tokenizer(formatted, max_length=args.max_source, truncation=True)
         encoded["labels"] = tokenizer(text_target=batch["target_text"],
                                        max_length=args.max_target, truncation=True)["input_ids"]
         return encoded
@@ -209,6 +233,8 @@ def train(args, data: dict) -> None:
     params["eval_strategy" if "eval_strategy" in arg_names else "evaluation_strategy"] = "epoch"
     if "gradient_checkpointing_kwargs" in arg_names:
         params["gradient_checkpointing_kwargs"] = {"use_reentrant": False}
+    if "torch_empty_cache_steps" in arg_names:
+        params["torch_empty_cache_steps"] = args.empty_cache_steps
     training_args = Seq2SeqTrainingArguments(**params)
     trainer_args = dict(model=model, args=training_args,
                         train_dataset=tokenized["train"], eval_dataset=tokenized["validation"],
@@ -218,14 +244,15 @@ def train(args, data: dict) -> None:
     trainer_args["processing_class" if "processing_class" in trainer_names else "tokenizer"] = tokenizer
     trainer = Seq2SeqTrainer(**trainer_args)
     try:
-        train_result = trainer.train()
+        train_result = trainer.train(resume_from_checkpoint=str(args.resume_from_checkpoint) if args.resume_from_checkpoint else None)
     except RuntimeError as error:
         if "out of memory" in str(error).lower():
-            raise SystemExit("GPU sin memoria para ByT5. Cierra otras apps de GPU o entrena en una GPU mayor.") from error
+            free, total = torch.cuda.mem_get_info() if torch.cuda.is_available() else (0, 0)
+            raise SystemExit(f"GPU sin memoria para {args.model_name}: {error}. Libre ahora: {free // 2**20} de {total // 2**20} MiB. Cierra otras apps de GPU o usa una GPU mayor.") from error
         raise
     model.gradient_checkpointing_disable()
     model.config.use_cache = True
-    trainer.save_model(str(final_dir))  # LoRA adapter, not full base weights
+    trainer.save_model(str(final_dir))
     tokenizer.save_pretrained(str(final_dir))
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -234,7 +261,7 @@ def train(args, data: dict) -> None:
     def predict(items):
         predictions = []
         for item in items:
-            inputs = tokenizer(item["input_text"], return_tensors="pt", max_length=args.max_source,
+            inputs = tokenizer(model_input(item, args.input_format), return_tensors="pt", max_length=args.max_source,
                                truncation=True).to(device)
             with torch.inference_mode():
                 tokens = model.generate(**inputs, max_new_tokens=args.max_target,
@@ -250,9 +277,12 @@ def train(args, data: dict) -> None:
     write_predictions(args.output_dir / "predicciones_validacion.csv", val_predictions)
     write_predictions(args.output_dir / "predicciones_test.csv", test_predictions)
     report = {
-        "base_model": args.model_name, "adapter": "LoRA q,v r=8 alpha=32",
+        "base_model": args.model_name,
+        "input_format": args.input_format,
+        "tuning_mode": "full" if args.full_finetune else "lora_qv_r8_alpha32",
         "python": platform.python_version(), "torch": torch.__version__,
         "transformers": transformers.__version__, "cuda": torch.cuda.is_available(),
+        "weight_dtype": str(low_memory_dtype or torch.float32),
         "gpu": torch.cuda.get_device_name(0) if torch.cuda.is_available() else None,
         "data_sha256": {name: file_sha256(path) for name, path in {"csv": CSV_FILE, **FILES}.items()},
         "counts": {name: len(items) for name, items in data.items()},
@@ -262,6 +292,8 @@ def train(args, data: dict) -> None:
     }
     (args.output_dir / "metricas.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     (final_dir / "otomi_config.json").write_text(json.dumps({"base_model": args.model_name,
+            "tuning_mode": "full" if args.full_finetune else "lora",
+            "input_format": args.input_format,
             "max_source": args.max_source, "max_target": args.max_target}, indent=2), encoding="utf-8")
     print(json.dumps({"validation": report["validation"], "test": report["test"]}, ensure_ascii=False, indent=2))
 
@@ -270,7 +302,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--baseline", action="store_true", help="Evalúa vecino más cercano solo en validación")
-    mode.add_argument("--train", action="store_true", help="Ajusta ByT5 con LoRA y evalúa prueba una vez")
+    mode.add_argument("--train", action="store_true", help="Ajusta el modelo y evalúa prueba una vez")
+    parser.add_argument("--full-finetune", action="store_true", help="Ajusta todos los pesos en vez de LoRA; requiere más disco y GPU")
     parser.add_argument("--allow-cpu", action="store_true")
     parser.add_argument("--epochs", type=int, default=15)
     parser.add_argument("--learning-rate", type=float, default=1e-4)
@@ -278,8 +311,13 @@ def main() -> None:
     parser.add_argument("--max-source", type=int, default=128)
     parser.add_argument("--max-target", type=int, default=80)
     parser.add_argument("--model-name", default=MODEL_NAME)
-    parser.add_argument("--output-dir", type=Path, default=ROOT / "runs" / "byt5_lora")
+    parser.add_argument("--input-format", choices=("tagged", "natural"), default="tagged")
+    parser.add_argument("--resume-from-checkpoint", type=Path)
+    parser.add_argument("--empty-cache-steps", type=int, default=10)
+    parser.add_argument("--output-dir", type=Path)
     args = parser.parse_args()
+    if args.output_dir is None:
+        args.output_dir = ROOT / "runs" / ("byt5_full" if args.full_finetune else "byt5_lora")
     data = read_data(args.max_source, args.max_target)
     print("Corpus verificado:", {key: len(value) for key, value in data.items()})
     print("Grupos:", dict(Counter((row["variante_id"], row["tipo_unidad"])

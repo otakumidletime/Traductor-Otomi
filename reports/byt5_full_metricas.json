@@ -1,0 +1,82 @@
+{
+  "base_model": "google/byt5-small",
+  "tuning_mode": "full",
+  "python": "3.14.4",
+  "torch": "2.11.0+cu128",
+  "transformers": "5.22.1",
+  "cuda": true,
+  "weight_dtype": "torch.bfloat16",
+  "gpu": "NVIDIA GeForce RTX 4050 Laptop GPU",
+  "data_sha256": {
+    "csv": "f57babc52b39ea5a94e9f492f1e00f2ccb4d53d38c9e0c263bff3adc48b8e29a",
+    "train": "8a4dfa970e9f9caa852f38fa781a6b3a69db4578d991110c7c09c52043919745",
+    "validation": "cb5c61e7b2eeb713a33907fb8c498951162f7da59d59d8de3b2f3b25a673ea5a",
+    "test": "435ef1eb87e5830a258eba17699de932e1daf4621eb8fcb4677f7f379d33cae1"
+  },
+  "counts": {
+    "train": 341,
+    "validation": 36,
+    "test": 38
+  },
+  "train_metrics": {
+    "train_runtime": 521.8965,
+    "train_samples_per_second": 7.187,
+    "train_steps_per_second": 0.906,
+    "total_flos": 437150738776320.0,
+    "train_loss": 17.648475824400435,
+    "epoch": 15.0
+  },
+  "validation": {
+    "san_ilde_tultepec/lexico": {
+      "aciertos_exactos": 0,
+      "total": 6,
+      "cer": 3.16,
+      "chrf": 1.9
+    },
+    "san_ilde_tultepec/oracion": {
+      "aciertos_exactos": 0,
+      "total": 9,
+      "cer": 2.356,
+      "chrf": 7.63
+    },
+    "santiago_mexquititlan/lexico": {
+      "aciertos_exactos": 0,
+      "total": 21,
+      "cer": 1.6889,
+      "chrf": 10.04
+    },
+    "TOTAL/TOTAL": {
+      "aciertos_exactos": 0,
+      "total": 36,
+      "cer": 2.1567,
+      "chrf": 7.79
+    }
+  },
+  "test": {
+    "san_ilde_tultepec/lexico": {
+      "aciertos_exactos": 0,
+      "total": 5,
+      "cer": 3.3846,
+      "chrf": 1.97
+    },
+    "san_ilde_tultepec/oracion": {
+      "aciertos_exactos": 0,
+      "total": 12,
+      "cer": 2.208,
+      "chrf": 4.72
+    },
+    "santiago_mexquititlan/lexico": {
+      "aciertos_exactos": 0,
+      "total": 21,
+      "cer": 3.0503,
+      "chrf": 5.54
+    },
+    "TOTAL/TOTAL": {
+      "aciertos_exactos": 0,
+      "total": 38,
+      "cer": 2.6253,
+      "chrf": 4.91
+    }
+  },
+  "warning": "Santiago Mexquititlan has no sentence examples; sentence quality there is unmeasured."
+}

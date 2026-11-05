@@ -6,3 +6,5 @@ accelerate>=1.0
 peft>=0.15
 scikit-learn>=1.6
 sacrebleu>=2.4
+sentencepiece>=0.2
+protobuf>=6

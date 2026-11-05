@@ -11,14 +11,15 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install --upgrade pip
 ```
 
-Instala **PyTorch con CUDA** usando el selector oficial de [PyTorch](https://pytorch.org/get-started/locally/), eligiendo Windows, Pip y la versión CUDA compatible. Hazlo dentro del entorno virtual. Después:
+En esta computadora quedó instalada la versión CUDA 12.8 de PyTorch 2.11.0, obtenida del índice oficial de [PyTorch](https://pytorch.org/get-started/locally/). Para repetir esta instalación en un entorno nuevo:
 
 ```powershell
+.\.venv\Scripts\python.exe -m pip install torch==2.11.0+cu128 --index-url https://download.pytorch.org/whl/cu128
 .\.venv\Scripts\python.exe -m pip install -r requirements-training.txt
 .\.venv\Scripts\python.exe -c "import torch; print(torch.cuda.is_available())"
 ```
 
-La laptop detectada tiene una RTX 4050 con 6 GB. El script usa ByT5-small con un adaptador LoRA, lotes de uno, acumulación de gradientes, checkpointing y Adafactor para reducir memoria. Esa configuración **puede** caber, pero no se ha ejecutado aquí: faltan los paquetes neuronales. Si se agota la memoria, cierra otras aplicaciones que usen la GPU o usa una GPU mayor. `--allow-cpu` permite un ensayo muy lento.
+La laptop detectada tiene una RTX 4050 con 6 GB. El script usa ByT5-small con un adaptador LoRA, lotes de uno, acumulación de gradientes, checkpointing y Adafactor para reducir memoria. El 5 de noviembre de 2026 se verificó `torch.cuda.is_available() == True`, una operación en GPU, la carga de ByT5 y **un paso de ajuste real con LoRA/BF16**; ese paso usó aproximadamente 1.2 GB de memoria GPU. El entrenamiento completo del corpus aún no se ha ejecutado y puede necesitar más memoria. Si se agota, cierra otras aplicaciones que usen la GPU o usa una GPU mayor. `--allow-cpu` permite un ensayo muy lento.
 
 ## Ejecutar
 

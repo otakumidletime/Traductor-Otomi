@@ -2,31 +2,28 @@ from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
 print("Cargando modelo de Inteligencia Artificial. Por favor espera...")
 
-# Cargar el modelo entrenado desde la carpeta local
 RUTA_MODELO = "./modelo_otomi_final"
-tokenizer = AutoTokenizer.from_pretrained(RUTA_MODELO)
+# Le decimos al sistema que la salida esperada es nuestro "disfraz"
+tokenizer = AutoTokenizer.from_pretrained("facebook/nllb-200-distilled-600M", use_fast=False, src_lang="spa_Latn", tgt_lang="quy_Latn")
 modelo = AutoModelForSeq2SeqLM.from_pretrained(RUTA_MODELO)
 
 def traducir_es_a_oto(texto_espanol):
     """Recibe un string en español y devuelve la traducción en otomí."""
     if not texto_espanol.strip():
         return ""
-        
-    # Convertir el texto a números (tokens) que la IA entiende
+
     inputs = tokenizer(texto_espanol, return_tensors="pt", max_length=128, truncation=True)
     
-    # Generar la traducción matemática con reglas estrictas anti-inglés
+    # Bloqueamos el idioma usando la nueva etiqueta
+    forced_token_id = tokenizer.lang_code_to_id["quy_Latn"]
+
     outputs = modelo.generate(
-        **inputs, 
+        **inputs,
+        forced_bos_token_id=forced_token_id,
         max_length=128,
-        num_beams=5,               # Aumenta la precisión de búsqueda
-        repetition_penalty=2.5,    # Castiga la repetición
-        temperature=0.3,           # <-- Hace a la IA más robótica y menos creativa (evita el inglés)
-        do_sample=True,
+        num_beams=5,
         early_stopping=True
     )
-    
-    # Decodificar el resultado matemático de vuelta a texto legible
+
     traduccion = tokenizer.decode(outputs[0], skip_special_tokens=True)
-    
     return traduccion

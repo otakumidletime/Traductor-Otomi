@@ -1,0 +1,9 @@
+# Fase 2: Flet y voz otomí
+
+Los seis archivos `audio_referencia/` suman aproximadamente 8 minutos y 40 segundos. No se recibió una transcripción alineada con cada grabación ni la atribución de su variedad. Por ahora se conservan como **referencias**, no como datos de entrenamiento de voz.
+
+El `main.py` de Flet recibido aún convierte la entrada a mayúsculas en lugar de llamar al traductor. Su salida de voz usa `gTTS` con código de español para otomí, por lo que la pronunciación sería española. El reconocimiento de voz también está configurado como español: sirve para dictado en español, no para reconocer otomí. La [API actual de audio de Flet](https://flet.dev/docs/services/audio/) usa `src` para reproducir; el mockup emplea `src_base64`, que habrá que actualizar.
+
+No aparece una voz de otomí en las listas oficiales de [Google Cloud Text-to-Speech](https://cloud.google.com/text-to-speech/docs/list-voices-and-types) ni [Azure Speech](https://learn.microsoft.com/azure/ai-services/speech-service/language-support?tabs=text-to-speech). [XTTS-v2](https://huggingface.co/coqui/XTTS-v2) permite voces multilingües, pero su lista de idiomas no incluye otomí. Usar una voz española o clonar una voz sin evaluación no demostraría pronunciación fiel.
+
+Para incorporar la voz: (1) conseguir de los hablantes la transcripción exacta, comunidad/variante y autorización de uso de cada clip; (2) separar grabaciones por frase y revisar ruido; (3) reproducir clips aprobados cuando la traducción coincida; (4) evaluar cualquier síntesis nueva con hablantes antes de activarla; (5) conectar `OtomiTranslator.translate()` al botón de Flet y mostrar si el resultado proviene del diccionario o del modelo experimental. La aplicación seguirá aceptando dictado en español como entrada hasta tener datos de reconocimiento de otomí.

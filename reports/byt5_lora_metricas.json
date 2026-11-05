@@ -1,0 +1,81 @@
+{
+  "base_model": "google/byt5-small",
+  "adapter": "LoRA q,v r=8 alpha=32",
+  "python": "3.14.4",
+  "torch": "2.11.0+cu128",
+  "transformers": "5.22.1",
+  "cuda": true,
+  "gpu": "NVIDIA GeForce RTX 4050 Laptop GPU",
+  "data_sha256": {
+    "csv": "f57babc52b39ea5a94e9f492f1e00f2ccb4d53d38c9e0c263bff3adc48b8e29a",
+    "train": "8a4dfa970e9f9caa852f38fa781a6b3a69db4578d991110c7c09c52043919745",
+    "validation": "cb5c61e7b2eeb713a33907fb8c498951162f7da59d59d8de3b2f3b25a673ea5a",
+    "test": "435ef1eb87e5830a258eba17699de932e1daf4621eb8fcb4677f7f379d33cae1"
+  },
+  "counts": {
+    "train": 341,
+    "validation": 36,
+    "test": 38
+  },
+  "train_metrics": {
+    "train_runtime": 749.8323,
+    "train_samples_per_second": 6.822,
+    "train_steps_per_second": 0.86,
+    "total_flos": 438018865701120.0,
+    "train_loss": 36.54683790576551,
+    "epoch": 15.0
+  },
+  "validation": {
+    "san_ilde_tultepec/lexico": {
+      "aciertos_exactos": 0,
+      "total": 6,
+      "cer": 15.88,
+      "chrf": 1.06
+    },
+    "san_ilde_tultepec/oracion": {
+      "aciertos_exactos": 0,
+      "total": 9,
+      "cer": 2.9581,
+      "chrf": 1.96
+    },
+    "santiago_mexquititlan/lexico": {
+      "aciertos_exactos": 0,
+      "total": 21,
+      "cer": 11.3037,
+      "chrf": 0.93
+    },
+    "TOTAL/TOTAL": {
+      "aciertos_exactos": 0,
+      "total": 36,
+      "cer": 7.0883,
+      "chrf": 1.22
+    }
+  },
+  "test": {
+    "san_ilde_tultepec/lexico": {
+      "aciertos_exactos": 0,
+      "total": 5,
+      "cer": 12.2692,
+      "chrf": 1.14
+    },
+    "san_ilde_tultepec/oracion": {
+      "aciertos_exactos": 0,
+      "total": 12,
+      "cer": 2.972,
+      "chrf": 1.14
+    },
+    "santiago_mexquititlan/lexico": {
+      "aciertos_exactos": 0,
+      "total": 21,
+      "cer": 5.6432,
+      "chrf": 1.26
+    },
+    "TOTAL/TOTAL": {
+      "aciertos_exactos": 0,
+      "total": 38,
+      "cer": 4.6,
+      "chrf": 1.2
+    }
+  },
+  "warning": "Santiago Mexquititlan has no sentence examples; sentence quality there is unmeasured."
+}
